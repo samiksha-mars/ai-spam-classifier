@@ -74,3 +74,23 @@ def load_dataset(path):
     """Load (text, label) pairs from a CSV with `label,text` columns."""
     with open(path, newline="", encoding="utf-8") as f:
         return [(row["text"], row["label"]) for row in csv.DictReader(f)]
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Classify a message as spam or ham.")
+    parser.add_argument("text", nargs="?", help="message to classify (reads stdin if omitted)")
+    parser.add_argument("--data", default=DEFAULT_DATA, help="training CSV with label,text columns")
+    args = parser.parse_args(argv)
+
+    text = args.text if args.text is not None else sys.stdin.read()
+    if not text.strip():
+        parser.error("no message given")
+
+    model = NaiveBayesClassifier().fit(load_dataset(args.data))
+    label, probability = model.predict(text)
+    print(f"{label} ({probability:.1%})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
