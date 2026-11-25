@@ -71,6 +71,11 @@ class LoadDatasetTest(unittest.TestCase):
         path = self.write("label,text\nspam,win cash\nham,see you soon\n")
         self.assertEqual(load_dataset(path), [("win cash", "spam"), ("see you soon", "ham")])
 
+    def test_accepts_byte_order_mark(self):
+        path = self.dir / "excel.csv"
+        path.write_text("label,text\nspam,win cash\n", encoding="utf-8-sig")
+        self.assertEqual(load_dataset(path), [("win cash", "spam")])
+
     def test_missing_columns_raise_value_error(self):
         with self.assertRaises(ValueError):
             load_dataset(self.write("category,message\nspam,win cash\n"))

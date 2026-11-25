@@ -72,7 +72,8 @@ class NaiveBayesClassifier:
 
 def load_dataset(path):
     """Load (text, label) pairs from a CSV with `label,text` columns."""
-    with open(path, newline="", encoding="utf-8") as f:
+    # utf-8-sig also accepts files with a byte-order mark, as saved by Excel.
+    with open(path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         if not {"label", "text"} <= set(reader.fieldnames or ()):
             raise ValueError(f"{path}: expected a header row with 'label' and 'text' columns")
