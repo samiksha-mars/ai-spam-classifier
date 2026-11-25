@@ -1,6 +1,10 @@
+import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
+from pathlib import Path
 
-from spam_classifier import DEFAULT_DATA, NaiveBayesClassifier, load_dataset, tokenize
+from spam_classifier import DEFAULT_DATA, NaiveBayesClassifier, load_dataset, main, tokenize
 
 
 class TokenizeTest(unittest.TestCase):
@@ -49,6 +53,58 @@ class BundledDatasetTest(unittest.TestCase):
         model = NaiveBayesClassifier().fit(load_dataset(DEFAULT_DATA))
         self.assertEqual(model.predict("Claim your free cash prize now")[0], "spam")
         self.assertEqual(model.predict("Can we move our meeting to Friday?")[0], "ham")
+
+
+class LoadDatasetTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+
+    def write(self, content):
+        path = self.dir / "data.csv"
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def test_loads_text_label_pairs(self):
+        path = self.write("label,text\nspam,win cash\nham,see you soon\n")
+        self.assertEqual(load_dataset(path), [("win cash", "spam"), ("see you soon", "ham")])
+
+    def test_missing_columns_raise_value_error(self):
+        with self.assertRaises(ValueError):
+            load_dataset(self.write("category,message\nspam,win cash\n"))
+
+    def test_short_row_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            load_dataset(self.write("label,text\nspam\n"))
+
+
+class CliTest(unittest.TestCase):
+
+    def run_main(self, argv):
+        stdout, stderr = StringIO(), StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = main(argv)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_classifies_message(self):
+        code, out, _ = self.run_main(["Claim your free cash prize now"])
+        self.assertEqual(code, 0)
+        self.assertTrue(out.startswith("spam ("))
+
+    def test_missing_data_file_is_reported(self):
+        code, _, err = self.run_main(["hello", "--data", "does-not-exist.csv"])
+        self.assertEqual(code, 1)
+        self.assertIn("Error:", err)
+
+    def test_header_only_data_file_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "empty.csv")
+            path.write_text("label,text\n", encoding="utf-8")
+            code, _, err = self.run_main(["hello", "--data", str(path)])
+        self.assertEqual(code, 1)
+        self.assertIn("empty dataset", err)
 
 
 if __name__ == "__main__":

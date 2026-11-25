@@ -73,7 +73,15 @@ class NaiveBayesClassifier:
 def load_dataset(path):
     """Load (text, label) pairs from a CSV with `label,text` columns."""
     with open(path, newline="", encoding="utf-8") as f:
-        return [(row["text"], row["label"]) for row in csv.DictReader(f)]
+        reader = csv.DictReader(f)
+        if not {"label", "text"} <= set(reader.fieldnames or ()):
+            raise ValueError(f"{path}: expected a header row with 'label' and 'text' columns")
+        samples = []
+        for row in reader:
+            if not row["label"] or row["text"] is None:
+                raise ValueError(f"{path}, line {reader.line_num}: missing label or text")
+            samples.append((row["text"], row["label"]))
+        return samples
 
 
 def main(argv=None):
@@ -86,7 +94,11 @@ def main(argv=None):
     if not text.strip():
         parser.error("no message given")
 
-    model = NaiveBayesClassifier().fit(load_dataset(args.data))
+    try:
+        model = NaiveBayesClassifier().fit(load_dataset(args.data))
+    except (OSError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     label, probability = model.predict(text)
     print(f"{label} ({probability:.1%})")
     return 0
